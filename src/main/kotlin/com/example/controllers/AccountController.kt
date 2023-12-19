@@ -1,20 +1,25 @@
 package com.example.controllers
 
 import at.favre.lib.crypto.bcrypt.BCrypt
-import com.example.dto.UserDTO
+import com.example.dto.CreateUserDTO
+import com.example.security.UserIntIdPrincipal
+import com.example.security.UserSession
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.server.sessions.*
 import java.sql.Connection
 import java.sql.DriverManager
 
 
 fun Route.accountRoutes() {
     route("/account") {
+        val url = environment?.config?.propertyOrNull("ktor.database.url")?.getString() ?:""
         post("/create") {
-            val account = call.receive<UserDTO>()
+            val account = call.receive<CreateUserDTO>()
             if (!Validator.validatePassword(account.password)) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid password")
                 return@post
@@ -38,8 +43,6 @@ fun Route.accountRoutes() {
             val bcryptHashPassword = BCrypt.withDefaults().hashToString(12, account.password.toCharArray())
 
             try {
-                val url =
-                    "jdbc:mariadb://localhost:3306/yourcitydb"//environment?.config?.property("ktor.database.url")?.getString()
                 val connection: Connection? = DriverManager.getConnection(url, "root", "")
                 val sql = "insert into users (name, email, phone, role, schoolId, password ) values (?,?,?,?,?,?)"
 
@@ -52,15 +55,28 @@ fun Route.accountRoutes() {
                 else preparedStatement.setNull(5, 4)
                 preparedStatement.setString(6, bcryptHashPassword)
 
-                val rowsAffected = preparedStatement.executeUpdate()
+                preparedStatement.executeUpdate()
                 connection.close()
                 call.respond(HttpStatusCode.Created)
             }catch (e: Exception){
-                call.respond(HttpStatusCode.InternalServerError)
-                //call.respond(HttpStatusCode.InternalServerError, e.localizedMessage)
+                call.respond(HttpStatusCode.BadRequest)
             }
+        }
+        authenticate("auth-form") {
+            post("/login"){
+                val userId = call.principal<UserIntIdPrincipal>()?.id
+                if(userId == null){
+                    call.respond(HttpStatusCode.Unauthorized)
+                    return@post
+                }
+                call.sessions.set(UserSession(userId = userId))
+                call.respond(HttpStatusCode.OK)
+            }
+        }
+        authenticate("auth-session") {
 
         }
+
     }
 
 }

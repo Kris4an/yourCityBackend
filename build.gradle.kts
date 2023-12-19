@@ -27,6 +27,8 @@ repositories {
 dependencies {
     implementation("io.ktor:ktor-server-core-jvm")
     implementation("io.ktor:ktor-server-sessions-jvm")
+    implementation("io.ktor:ktor-server-sessions:$ktor_version")
+    implementation("io.ktor:ktor-server-auth:$ktor_version")
     implementation("io.ktor:ktor-server-netty-jvm")
     implementation("ch.qos.logback:logback-classic:$logback_version")
     implementation("org.mariadb.jdbc:mariadb-java-client:3.3.1")

@@ -1,0 +1,49 @@
+package com.example.security
+
+import io.ktor.server.sessions.*
+import java.sql.Connection
+import java.sql.DriverManager
+
+class SessionStorageDatabase : SessionStorage{
+    private val url = System.getenv("DATABASE_URL")
+    override suspend fun invalidate(id: String) {
+        try{
+            val connection: Connection? = DriverManager.getConnection(url, "root", "")
+            val sql = "delete from sessions where id=?"
+            val preparedStatement = connection!!.prepareStatement(sql)
+            preparedStatement.execute()
+            connection.close()
+        }catch (_:Exception){
+            throw Exception("Invalid database url")
+        }
+    }
+
+    override suspend fun read(id: String): String {
+        try{
+            val connection: Connection? = DriverManager.getConnection(url, "root", "")
+            val sql = "select * from sessions where id=?"
+            val preparedStatement = connection!!.prepareStatement(sql)
+            preparedStatement.setString(1,id)
+
+            val result = preparedStatement.executeQuery()
+            connection.close()
+            result.next()
+            return result.getString("value") ?:throw NoSuchElementException("Session $id not found")
+        }catch (_:Exception){
+            throw Exception("Invalid database url")
+        }
+    }
+    override suspend fun write(id: String, value: String) {
+        try{
+            val connection: Connection? = DriverManager.getConnection(url, "root", "")
+            val sql = "insert into sessions values(?,?)"
+            val preparedStatement = connection!!.prepareStatement(sql)
+            preparedStatement.setString(1,id)
+            preparedStatement.setString(2,value)
+            preparedStatement.execute()
+            connection.close()
+        }catch (_: Exception){
+            throw Exception("Invalid url")
+        }
+    }
+}
