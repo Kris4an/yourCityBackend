@@ -37,5 +37,7 @@ dependencies {
     implementation("io.ktor:ktor-server-status-pages:$ktor_version")
     testImplementation("io.ktor:ktor-server-tests-jvm")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
+    testImplementation("io.ktor:ktor-server-test-host:$ktor_version")
+    testImplementation("io.ktor:ktor-client-content-negotiation:2.1.1")
     implementation("at.favre.lib:bcrypt:0.10.2")
 }

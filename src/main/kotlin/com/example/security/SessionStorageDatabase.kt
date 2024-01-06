@@ -13,8 +13,9 @@ class SessionStorageDatabase : SessionStorage{
             val preparedStatement = connection!!.prepareStatement(sql)
             preparedStatement.execute()
             connection.close()
-        }catch (_:Exception){
-            throw Exception("Invalid database url")
+
+        }catch (e:Exception){
+            throw e
         }
     }
 
@@ -27,10 +28,10 @@ class SessionStorageDatabase : SessionStorage{
 
             val result = preparedStatement.executeQuery()
             connection.close()
-            result.next()
+            if(!result.next()) throw NoSuchElementException("Session $id not found")
             return result.getString("value") ?:throw NoSuchElementException("Session $id not found")
-        }catch (_:Exception){
-            throw Exception("Invalid database url")
+        }catch (e:Exception){
+            throw e
         }
     }
     override suspend fun write(id: String, value: String) {
@@ -42,8 +43,9 @@ class SessionStorageDatabase : SessionStorage{
             preparedStatement.setString(2,value)
             preparedStatement.execute()
             connection.close()
-        }catch (_: Exception){
-            throw Exception("Invalid url")
+
+        }catch (e: Exception){
+            throw e
         }
     }
 }

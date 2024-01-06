@@ -9,36 +9,41 @@ import io.ktor.server.sessions.*
 import io.ktor.util.*
 import java.sql.Connection
 import java.sql.DriverManager
+fun validateCredentialsById(databaseUrl: String, id: Int, password: String):Boolean{
+    return validateCredentials(databaseUrl, id.toString(), password, false) != null
+}
+private fun validateCredentialsByEmail(databaseUrl: String, email: String, password: String):UserSession? {
+    return validateCredentials(databaseUrl, email, password, true)
+}
 
-private fun validateCredentials(databaseUrl: String, email: String, password: String):UserIntIdPrincipal? {
+private fun validateCredentials(databaseUrl: String, searchParam: String, password: String, byEmail: Boolean):UserSession? {
     try{
         val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
-        val sql = "select id, email, password from users where email=?"
+        val sql = if(byEmail) "select id, password, role from users where email=?"
+        else "select id, password, role from users where id = ?"
         val preparedStatement = connection!!.prepareStatement(sql)
-        preparedStatement.setString(1, email)
+        if(byEmail) preparedStatement.setString(1, searchParam)
+        else preparedStatement.setInt(1, searchParam.toInt())
         val result = preparedStatement.executeQuery()
         connection.close()
         if(result == null) return null
-        result.next()
+        if(!result.next()) return null
         val hashedUserPassword = result.getString("password")
         if(BCrypt.verifyer().verify(password.toCharArray(), hashedUserPassword).verified){
-            return UserIntIdPrincipal(result.getInt("id"))
+            return UserSession(result.getInt("id"))
         }
         return null
-    }catch (_:Exception){
-        throw Exception("Invalid database url")
+    }catch (e:Exception){
+        throw e
     }
 }
 fun Application.configureSecurity() {
-    val secretEncryptKey = hex(environment.config.propertyOrNull("ktor.sessions.secretEncryptKey")?.getString() ?:throw Exception("Can't access environment config"))
-    val secretSignKey =  hex(environment.config.propertyOrNull("ktor.sessions.secretSignKey")?.getString() ?:throw Exception("Can't access environment config"))
     val databaseUrl = environment.config.propertyOrNull("ktor.database.url")?.getString() ?:""
     install(Sessions) {
         cookie<UserSession>("user_session", SessionStorageDatabase()) {
             cookie.path = "/"
             cookie.maxAgeInSeconds = 2592000
             cookie.extensions["SameSite"] = "lax"
-            transform(SessionTransportTransformerEncrypt(secretEncryptKey, secretSignKey))
         }
     }
     install(Authentication) {
@@ -46,7 +51,7 @@ fun Application.configureSecurity() {
             userParamName = "email"
             passwordParamName = "password"
             validate { credentials ->
-                validateCredentials(databaseUrl, credentials.name, credentials.password)
+                validateCredentialsByEmail(databaseUrl, credentials.name, credentials.password)
             }
             challenge {
                 call.respond(HttpStatusCode.Unauthorized)

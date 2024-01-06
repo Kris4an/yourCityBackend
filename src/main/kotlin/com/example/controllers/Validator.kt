@@ -56,5 +56,21 @@ class Validator {
             val roles = arrayOf("student","citizen")
             return roles.contains(role)
         }
+        fun validateName(name: String): Boolean {
+            val allowedCharacters = arrayOf('а','б','в','г','д','е','ж','з','и','й','к','л','м','н','о','п','р','с','т','у','ф','х','ц','ч','ш','щ','ъ','ь','ю','я')
+            val names = name.split(' ')
+            if(name.length !in 1..35) return false
+            names.onEach { n ->
+                run {
+                    n.substring(1).onEach { c ->
+                        run {
+                            if(c !in allowedCharacters) return false
+                        }
+                    }
+                    if(!n[0].isUpperCase() && n[0] !in allowedCharacters) return false
+                }
+            }
+            return true
+        }
     }
 }
