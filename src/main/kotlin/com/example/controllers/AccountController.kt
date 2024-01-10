@@ -23,8 +23,6 @@ fun getUser(databaseUrl: String, user: UserSession): User? {
         preparedStatement.setInt(1, user.userId)
         val result = preparedStatement.executeQuery()
         if(!result.next()){
-            println(user.userId)
-            println(result)
             return null
         }
 
@@ -43,7 +41,7 @@ fun getUser(databaseUrl: String, user: UserSession): User? {
         )
 
     }catch (e: Exception){
-        throw e
+        println(e.message)
         return null
     }
 }

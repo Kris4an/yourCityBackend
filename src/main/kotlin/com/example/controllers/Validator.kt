@@ -1,5 +1,6 @@
 package com.example.controllers
 
+import com.example.dto.CreateSuggestionDTO
 import java.util.*
 
 class Validator {
@@ -71,6 +72,9 @@ class Validator {
                 }
             }
             return true
+        }
+        fun validateCreateSuggestionDTO(sug: CreateSuggestionDTO): Boolean{
+            return sug.title.length in 3..50 && sug.content.length in 50..1500
         }
     }
 }

@@ -60,6 +60,7 @@ fun Application.configureSecurity() {
         session<UserSession>("auth-session") {
             validate { session ->
                 session
+                //TODO check if user is banned
             }
             challenge {
                 call.respond(HttpStatusCode.Unauthorized)
