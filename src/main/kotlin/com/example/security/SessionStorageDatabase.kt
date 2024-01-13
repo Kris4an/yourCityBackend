@@ -45,6 +45,7 @@ class SessionStorageDatabase : SessionStorage{
             connection.close()
 
         }catch (e: Exception){
+            println("id=${id}, value=${value}")
             throw e
         }
     }

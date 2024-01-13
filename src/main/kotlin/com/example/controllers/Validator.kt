@@ -76,5 +76,12 @@ class Validator {
         fun validateCreateSuggestionDTO(sug: CreateSuggestionDTO): Boolean{
             return sug.title.length in 3..50 && sug.content.length in 50..1500
         }
+        private val statuses = arrayOf("waiting","accepted","denied","hidden")
+        fun getSuggestionStatusList():Array<String>{
+            return statuses
+        }
+        fun validateSuggestionStatus(status: String):Boolean{
+            return statuses.contains(status)
+        }
     }
 }

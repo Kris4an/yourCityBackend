@@ -34,7 +34,24 @@ private fun validateCredentials(databaseUrl: String, searchParam: String, passwo
         }
         return null
     }catch (e:Exception){
-        throw e
+        println(e.message)
+        return null
+    }
+}
+private fun validateAdmin(databaseUrl: String, userId: Int):Boolean {
+    try {
+        val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
+        val sql = "select role from users where id = ?"
+        val preparedStatement = connection!!.prepareStatement(sql)
+        preparedStatement.setInt(1, userId)
+        val result = preparedStatement.executeQuery()
+        preparedStatement.close()
+        connection.close()
+        if(!result.next()) return false
+        return result.getString("role") == "admin"
+    }catch (e:Exception){
+        println(e.message)
+        return false
     }
 }
 fun Application.configureSecurity() {
@@ -63,6 +80,15 @@ fun Application.configureSecurity() {
                 //TODO check if user is banned
             }
             challenge {
+                call.respond(HttpStatusCode.Unauthorized)
+            }
+        }
+        session<UserSession>("auth-admin") {
+            validate { session ->
+                if(validateAdmin(databaseUrl, session.userId)) session
+                else null
+            }
+            challenge{
                 call.respond(HttpStatusCode.Unauthorized)
             }
         }
