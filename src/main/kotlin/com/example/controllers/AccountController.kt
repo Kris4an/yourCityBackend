@@ -92,10 +92,6 @@ fun Route.accountRoutes() {
                 call.respond(HttpStatusCode.BadRequest, "Invalid name")
                 return@post
             }
-            if(body.role == "student" && body.schoolId == null){
-                call.respond(HttpStatusCode.BadRequest, "School id can't be null when role is student")
-                return@post
-            }
             val bcryptHashPassword = hashPassword(body.password)
 
             try {

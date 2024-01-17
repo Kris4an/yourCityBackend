@@ -34,11 +34,7 @@ fun Route.schoolRoutes() {
         val databaseUrl = environment?.config?.propertyOrNull("ktor.database.url")?.getString() ?:""
         get("/{id}"){
             val schoolId = call.parameters["id"]
-            if(schoolId.isNullOrEmpty()){
-                call.respond(HttpStatusCode.BadRequest)
-                return@get
-            }
-            if(schoolId.toIntOrNull() == null){
+            if(schoolId.isNullOrEmpty() || schoolId.toIntOrNull() == null){
                 call.respond(HttpStatusCode.BadRequest)
                 return@get
             }

@@ -27,7 +27,7 @@ fun Route.suggestionRoutes() {
                 }
                 val suggestion = call.receive<CreateSuggestionDTO>()
                 if(Validator.validateCreateSuggestionDTO(suggestion)){
-                    call.respond(HttpStatusCode.BadRequest)
+                    call.respond(HttpStatusCode.BadRequest, "Invalid title or content length")
                     return@post
                 }
                 val postDate = LocalDate.now()
@@ -65,11 +65,11 @@ fun Route.suggestionRoutes() {
             try{
                 val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
                 val sql = "select s.id, title, content, postDate, isAnon, " +
-                        "categories.name as categoryName, u.name as userName, role, schools.name as schoolName from " +
-                        "suggestions as s left join users as u on s.userId = u.id join categories on " +
+                        "categories.name as categoryName, u.name as userName, role, schools.name as schoolName, " +
+                        "(select Count(*) from likes where suggestionId = s.id) as likes " +
+                        "from suggestions as s left join users as u on s.userId = u.id join categories on " +
                         "s.categoryId = categories.id left join schools on u.schoolId = schools.id " +
                         "where status='accepted' limit ? offset ?"
-                //TODO return likes count
                 val preparedStatement = connection!!.prepareStatement(sql)
 
                 preparedStatement.setInt(1,page*10)
@@ -104,7 +104,8 @@ fun Route.suggestionRoutes() {
                         resultSet.getString("title"),
                         resultSet.getString("content"),
                         resultSet.getString("categoryName"),
-                        isAnon
+                        isAnon,
+                        resultSet.getInt("likes")
                     ))
                 }
                 resultSet.close()
