@@ -11,7 +11,8 @@ class SessionStorageDatabase : SessionStorage{
             val connection: Connection? = DriverManager.getConnection(url, "root", "")
             val sql = "delete from sessions where id=?"
             val preparedStatement = connection!!.prepareStatement(sql)
-            preparedStatement.execute()
+            preparedStatement.setString(1, id)
+            preparedStatement.executeUpdate()
             connection.close()
 
         }catch (e:Exception){

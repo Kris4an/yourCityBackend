@@ -115,10 +115,6 @@ fun Route.accountRoutes() {
                 throw e
             }
         }
-        post("/logout"){
-            call.sessions.clear<UserSession>()
-            call.respond(HttpStatusCode.OK)
-        }
         authenticate("auth-form") {
             post("/login"){
                 val user = call.principal<UserSession>()
@@ -130,19 +126,35 @@ fun Route.accountRoutes() {
                 call.respond(HttpStatusCode.OK)
             }
             delete("/delete"){
-                //TODO delete or update foreign key constraints of users
                 val user = call.principal<UserSession>()
                 if(user == null){
                     call.respond(HttpStatusCode.Unauthorized)
                     return@delete
                 }
                 val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
-                val sql = "delete from users where id=?"
-                val preparedStatement = connection!!.prepareStatement(sql)
+                var preparedStatement = connection!!.prepareStatement("delete from likes where likedById = ?")
+                preparedStatement.setInt(1,user.userId)
+                preparedStatement.executeUpdate()
+
+                preparedStatement = connection.prepareStatement("update suggestions set userId = null where userId = ?")
+                preparedStatement.setInt(1,user.userId)
+                preparedStatement.executeUpdate()
+
+                preparedStatement = connection.prepareStatement("update bans set adminId = null where adminId = ?")
+                preparedStatement.setInt(1,user.userId)
+                preparedStatement.executeUpdate()
+
+                preparedStatement = connection.prepareStatement("delete from users where id=?")
                 preparedStatement.setInt(1, user.userId)
                 call.sessions.clear<UserSession>()
-                preparedStatement.executeQuery()
+                preparedStatement.executeUpdate()
                 connection.close()
+                call.respond(HttpStatusCode.OK)
+            }
+        }
+        authenticate("auth-logout") {
+            post("/logout"){
+                call.sessions.clear<UserSession>()
                 call.respond(HttpStatusCode.OK)
             }
         }
@@ -267,8 +279,19 @@ fun Route.accountRoutes() {
                     }
                     try{
                         val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
-                        val sql = "update users set role = ? where id = ?"
-                        val preparedStatement = connection!!.prepareStatement(sql)
+                        var preparedStatement = connection!!.prepareStatement("select * from users where id = ?")
+                        preparedStatement.setInt(1,user.userId)
+                        val resCheckRole = preparedStatement.executeQuery()
+                        if(resCheckRole.next()){
+                            if(resCheckRole.getString("role") == "admin"){
+                                call.respond(HttpStatusCode.Conflict, "Could not remove admin role")
+                            }
+                        } else{
+                            call.respond(HttpStatusCode(400, "Error"))
+                            return@put
+                        }
+
+                        preparedStatement = connection.prepareStatement("update users set role = ? where id = ?")
                         preparedStatement.setString(1, body.role)
                         preparedStatement.setInt(2, user.userId)
                         val res = preparedStatement.executeUpdate()

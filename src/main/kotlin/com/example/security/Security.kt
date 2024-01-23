@@ -38,7 +38,7 @@ private fun validateCredentials(databaseUrl: String, searchParam: String, passwo
         return null
     }
 }
-private fun validateAdmin(databaseUrl: String, userId: Int):Boolean {
+private fun validateAdmin(databaseUrl: String, userId: Int): Boolean {
     try {
         val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
         val sql = "select role from users where id = ?"
@@ -52,6 +52,23 @@ private fun validateAdmin(databaseUrl: String, userId: Int):Boolean {
     }catch (e:Exception){
         println(e.message)
         return false
+    }
+}
+private fun validateUserBanStatus(databaseUrl: String, user: UserSession): UserSession?{
+    try {
+        val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
+        val sql = "select Count(*) as banCount from bans where userId = ? AND endDate>=CURDATE()"
+        val preparedStatement = connection!!.prepareStatement(sql)
+        preparedStatement.setInt(1,user.userId)
+        val resultSet = preparedStatement.executeQuery()
+        if(resultSet.next()){
+            return if(resultSet.getInt(1) <= 0) user
+            else null
+        }
+        return null
+    }catch (e:Exception){
+        println(e.message)
+        return null
     }
 }
 fun Application.configureSecurity() {
@@ -76,8 +93,15 @@ fun Application.configureSecurity() {
         }
         session<UserSession>("auth-session") {
             validate { session ->
+                validateUserBanStatus(databaseUrl, session)
+            }
+            challenge {
+                call.respond(HttpStatusCode.Unauthorized)
+            }
+        }
+        session<UserSession>("auth-logout") {
+            validate { session ->
                 session
-                //TODO check if user is banned
             }
             challenge {
                 call.respond(HttpStatusCode.Unauthorized)

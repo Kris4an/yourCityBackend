@@ -20,8 +20,10 @@ private fun getPagedData(sql: String, databaseUrl: String, page: Int):ResultSet 
     val preparedStatement = connection!!.prepareStatement(sql)
     preparedStatement.setInt(1,page*10)
     preparedStatement.setInt(2,page*10-10)
+
+    val resultSet =  preparedStatement.executeQuery()
     connection.close()
-    return preparedStatement.executeQuery()
+    return resultSet
 }
 fun Route.adminRoutes() {
     authenticate("auth-admin") {
@@ -161,13 +163,13 @@ fun Route.adminRoutes() {
                             " (select Count(*) from likes where suggestionId = s.id) as likes from suggestions s join" +
                             " categories on s.categoryId = categories.id left join users u on s.userId = u.id left join " +
                             "schools on u.schoolId = schools.id"
-
+                    var filters = listOf<String>()
                     if(filterParams != null) {
-                        val filters = filterParams.filter { f -> Validator.getSuggestionStatusList().contains(f) }
+                        filters = filterParams.filter { f -> Validator.getSuggestionStatusList().contains(f) }
                         if(filters.size in 1..3){
                             var where= ""
                             for(filter in filters){
-                                where += "OR status = '$filter' "
+                                where += "OR status = ? "
                             }
                             sql += " where" + where.substring(2)
                         }
@@ -181,7 +183,18 @@ fun Route.adminRoutes() {
                     }
                     sql += " limit ? offset ?"
                     try {
-                        val resultSet = getPagedData(sql, databaseUrl, page)
+                        val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
+                        val preparedStatement = connection!!.prepareStatement(sql)
+                        val n = filters.size
+                        var i = 1
+                        while(i<=n){
+                            preparedStatement.setString(i, filters[i-1])
+                            i++
+                        }
+                        preparedStatement.setInt(n+1,page*10)
+                        preparedStatement.setInt(n+2,page*10-10)
+
+                        val resultSet =  preparedStatement.executeQuery()
                         val result = mutableListOf<AdminSuggestionDTO>()
                         while(resultSet.next()){
                             result.add(
@@ -208,6 +221,7 @@ fun Route.adminRoutes() {
                     }catch (e: Exception){
                         println(e.localizedMessage)
                         call.respond(HttpStatusCode(400, "Error"))
+                        throw e
                     }
                 }
                 post("/approve"){
@@ -230,14 +244,14 @@ fun Route.adminRoutes() {
                     }
                 }
                 put("/approved/update"){
-                    val body = call.receive<AdminApprovedSuggestionUpdateDTO>()
+                    val body = call.receive<AdminApproveSuggestionDTO>()
                     try {
                         val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
                         val sql = "update approvedsuggestions set moreInfo = ?, date = ? where id = ?"
                         val preparedStatement = connection!!.prepareStatement(sql)
                         preparedStatement.setString(1,body.moreInfo)
                         preparedStatement.setString(2,LocalDate.now().toString())
-                        preparedStatement.setInt(3, body.id)
+                        preparedStatement.setInt(3, body.suggestionId)
                         preparedStatement.executeUpdate()
                         preparedStatement.close()
                         connection.close()
@@ -338,11 +352,15 @@ fun Route.adminRoutes() {
                         val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
                         var preparedStatement = connection!!.prepareStatement("select count(*) as cnt from " +
                                 "approvedsuggestions where suggestionId = ?")
+                        preparedStatement.setInt(1, id)
                         val resultSet = preparedStatement.executeQuery()
-                        if(resultSet.getInt("cnt") > 0){
-                            call.respond(HttpStatusCode(400, "Could not delete suggestion which is " +
-                                    "approved. Delete the approved suggestion first"))
+                        if(resultSet.next()){
+                            if(resultSet.getInt("cnt") > 0){
+                                call.respond(HttpStatusCode(400, "Could not delete suggestion which is " +
+                                        "approved. Delete the approved suggestion first"))
+                            }
                         }
+                        else throw Exception("Can not check if suggestion is approved")
                         preparedStatement = connection.prepareStatement("delete from likes where suggestionId = ?")
                         preparedStatement.setInt(1,id)
                         preparedStatement.executeUpdate()
@@ -381,7 +399,7 @@ fun Route.adminRoutes() {
                     }
                 }
             }
-            post("/admin/ban"){
+            post("/ban"){
                 val admin = call.sessions.get<UserSession>()
                 val body = call.receive<AdminBanDTO>()
                 if(admin == null || body.banLength < 1){
@@ -408,15 +426,61 @@ fun Route.adminRoutes() {
                     call.respond(HttpStatusCode(400, "Error"))
                 }
             }
-            delete("/admin/unban/{id}") {
+            delete("/unban/{id}") {//removes all active bans from the user
                 val userId = call.parameters["id"]?.toInt()
                 if(userId == null || userId < 0){
                     call.respond(HttpStatusCode.BadRequest)
                     return@delete
                 }
-            }
-            get("/admin/bans/{id}"){
+                try {
+                    val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
+                    val preparedStatement = connection!!.prepareStatement("delete from bans where userId = ?" +
+                            " AND endDate >= CURDATE()")
+                    preparedStatement.setInt(1,userId)
+                    preparedStatement.executeUpdate()
 
+                    preparedStatement.close()
+                    connection.close()
+                    call.respond(HttpStatusCode.OK)
+                }catch (e: SQLException){
+                    println(e.localizedMessage)
+                    call.respond(HttpStatusCode(400, "Error"))
+                }
+            }
+            get("/bans/{id}"){
+                val userId = call.parameters["id"]?.toInt()
+                if(userId == null || userId < 0){
+                    call.respond(HttpStatusCode.BadRequest)
+                    return@get
+                }
+                try {
+                    val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
+                    val preparedStatement = connection!!.prepareStatement("select startDate, endDate-startDate " +
+                            "as banLength, reason, users.name , users.email from bans left join users on " +
+                            "bans.adminId = users.id where userId = ?")
+                    preparedStatement.setInt(1,userId)
+                    val resultSet = preparedStatement.executeQuery()
+                    val res = mutableListOf<AdminSendBanDTO>()
+
+                    while(resultSet.next()){
+                        res.add(
+                            AdminSendBanDTO(
+                                resultSet.getString(1),
+                                resultSet.getInt(2),
+                                resultSet.getString(3),
+                                resultSet.getString(4),
+                                resultSet.getString(5)
+                            ))
+                    }
+
+                    resultSet.close()
+                    preparedStatement.close()
+                    connection.close()
+                    call.respond(HttpStatusCode.OK, res)
+                }catch (e: SQLException){
+                    println(e.localizedMessage)
+                    call.respond(HttpStatusCode(400, "Error"))
+                }
             }
         }
     }
