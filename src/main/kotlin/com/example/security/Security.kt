@@ -12,11 +12,11 @@ import java.sql.DriverManager
 fun validateCredentialsById(databaseUrl: String, id: Int, password: String):Boolean{
     return validateCredentials(databaseUrl, id.toString(), password, false) != null
 }
-private fun validateCredentialsByEmail(databaseUrl: String, email: String, password: String):UserSession? {
+private fun validateCredentialsByEmail(databaseUrl: String, email: String, password: String):LoginPrincipal? {
     return validateCredentials(databaseUrl, email, password, true)
 }
 
-private fun validateCredentials(databaseUrl: String, searchParam: String, password: String, byEmail: Boolean):UserSession? {
+private fun validateCredentials(databaseUrl: String, searchParam: String, password: String, byEmail: Boolean):LoginPrincipal? {
     try{
         val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
         val sql = if(byEmail) "select id, password, role from users where email=?"
@@ -30,7 +30,7 @@ private fun validateCredentials(databaseUrl: String, searchParam: String, passwo
         if(!result.next()) return null
         val hashedUserPassword = result.getString("password")
         if(BCrypt.verifyer().verify(password.toCharArray(), hashedUserPassword).verified){
-            return UserSession(result.getInt("id"))
+            return LoginPrincipal(result.getInt("id"))
         }
         return null
     }catch (e:Exception){
@@ -93,10 +93,10 @@ fun Application.configureSecurity() {
         }
         session<UserSession>("auth-session") {
             validate { session ->
-                validateUserBanStatus(databaseUrl, session)
+                    validateUserBanStatus(databaseUrl, session)
             }
             challenge {
-                call.respond(HttpStatusCode.Unauthorized)
+                call.respond(HttpStatusCode(401, "Banned"))
             }
         }
         session<UserSession>("auth-logout") {

@@ -66,15 +66,14 @@ fun Route.suggestionRoutes() {
                     var preparedStatement = connection!!.prepareStatement(
                         "select COUNT(*) from approvedsuggestions where suggestionId = ?"
                     )
-                    preparedStatement.setInt(1,suggestionId)
+                    preparedStatement.setInt(1, suggestionId)
                     val resCheck = preparedStatement.executeQuery()
-                    if(resCheck.next()){
-                        if(resCheck.getInt(1) > 0){
-                            call.respond(HttpStatusCode(403,"Could not delete suggestion because it's approved"))
+                    if (resCheck.next()) {
+                        if (resCheck.getInt(1) > 0) {
+                            call.respond(HttpStatusCode(403, "Could not delete suggestion because it's approved"))
                             return@delete
-                        }
-                        else{
-                            call.respond(HttpStatusCode(400,"Error"))
+                        } else {
+                            call.respond(HttpStatusCode(400, "Error"))
                             return@delete
                         }
                     }
@@ -208,6 +207,7 @@ fun Route.suggestionRoutes() {
             }
         }
         get("/all") {
+            val reqUser = call.sessions.get<UserSession>()
             val page = call.request.queryParameters["page"]?.toInt()
             if (page == null || page < 1) {
                 call.respond(HttpStatusCode.BadRequest)
@@ -215,16 +215,20 @@ fun Route.suggestionRoutes() {
             }
             try {
                 val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
-                val sql = "select s.id, title, content, postDate, isAnon, " +
+                val sql = "select s.id, title, content, postDate, isAnon, postDate, " +
                         "categories.name as categoryName, u.name as userName, role, schools.name as schoolName, " +
-                        "(select Count(*) from likes where suggestionId = s.id) as likes " +
+                        "(select Count(*) from likes where suggestionId = s.id) as likes, " +
+                        "(select Count(*) from likes where suggestionId = s.id AND likedById  = ?) as likedByUser " +
                         "from suggestions as s left join users as u on s.userId = u.id join categories on " +
                         "s.categoryId = categories.id left join schools on u.schoolId = schools.id " +
                         "where status='accepted' limit ? offset ?"
                 val preparedStatement = connection!!.prepareStatement(sql)
 
-                preparedStatement.setInt(1, page * 10)
-                preparedStatement.setInt(2, page * 10 - 10)
+                if (reqUser != null) {
+                    preparedStatement.setInt(1, reqUser.userId)
+                } else preparedStatement.setInt(1, -1)
+                preparedStatement.setInt(2, page * 10)
+                preparedStatement.setInt(3, page * 10 - 10)
                 val resultSet = preparedStatement.executeQuery()
 
                 val res = mutableListOf<SendSuggestionDTO>()
@@ -255,7 +259,9 @@ fun Route.suggestionRoutes() {
                             resultSet.getString("content"),
                             resultSet.getString("categoryName"),
                             isAnon,
-                            resultSet.getInt("likes")
+                            resultSet.getInt("likes"),
+                            resultSet.getString("postDate"),
+                            if (reqUser == null) null else resultSet.getInt("likedByUser") > 0
                         )
                     )
                 }
@@ -270,22 +276,23 @@ fun Route.suggestionRoutes() {
                 call.respond(HttpStatusCode.BadRequest)
             }
         }
-        get("/category"){
+
+        get("/category") {
             try {
                 val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
                 val preparedStatement = connection!!.prepareStatement("select * from categories order by id")
                 val resultSet = preparedStatement.executeQuery()
 
                 val result = mutableListOf<CategoryDTO>()
-                while (resultSet.next()){
+                while (resultSet.next()) {
                     result.add(
-                        CategoryDTO(resultSet.getInt(1),resultSet.getString(2))
+                        CategoryDTO(resultSet.getInt(1), resultSet.getString(2))
                     )
                 }
                 call.respond(HttpStatusCode.OK, result)
-            }catch (e:Exception){
+            } catch (e: Exception) {
                 println(e.localizedMessage)
-                call.respond(HttpStatusCode(400,"Error"))
+                call.respond(HttpStatusCode(400, "Error"))
             }
         }
     }

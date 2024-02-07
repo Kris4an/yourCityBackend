@@ -3,6 +3,7 @@ package com.example.controllers
 import at.favre.lib.crypto.bcrypt.BCrypt
 import com.example.dto.*
 import com.example.entities.User
+import com.example.security.LoginPrincipal
 import com.example.security.UserSession
 import com.example.security.validateCredentialsById
 import io.ktor.http.*
@@ -117,7 +118,7 @@ fun Route.accountRoutes() {
         }
         authenticate("auth-form") {
             post("/login"){
-                val user = call.principal<UserSession>()
+                val user = call.principal<LoginPrincipal>()
                 if(user == null){
                     call.respond(HttpStatusCode.Unauthorized)
                     return@post
