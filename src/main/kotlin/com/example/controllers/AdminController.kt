@@ -158,7 +158,7 @@ fun Route.adminRoutes() {
                         call.respond(HttpStatusCode.BadRequest)
                         return@get
                     }
-                    var sql = "select s.id as suggestionId, title, content, postDate, isAnon, status, u.id as userId, " +
+                    var sql = "select s.id as suggestionId, title, content, postDate, isAnon, status, phone, u.id as userId, " +
                             "u.name as userName, role, email, schools.name as school, categories.name as category," +
                             " (select Count(*) from likes where suggestionId = s.id) as likes from suggestions s join" +
                             " categories on s.categoryId = categories.id left join users u on s.userId = u.id left join " +
@@ -166,22 +166,21 @@ fun Route.adminRoutes() {
                     var filters = listOf<String>()
                     if(filterParams != null) {
                         filters = filterParams.filter { f -> Validator.getSuggestionStatusList().contains(f) }
-                        if(filters.size in 1..3){
                             var where= ""
                             for(filter in filters){
                                 where += "OR status = ? "
                             }
                             sql += " where" + where.substring(2)
-                        }
                     }
                     sql += when(sort){
-                        "dateDesc" -> " order by postDate desc, s.id"
+                        "dateDesc" -> " order by postDate desc, s.id desc"
                         "dateAsc" -> " order by postDate asc, s.id"
                         "likesDesc" -> " order by likes desc, s.id"
                         "likesAsc" -> " order by likes asc, s.id"
-                        else -> " order by postDate desc, s.id"
+                        else -> " order by postDate desc, s.id desc"
                     }
                     sql += " limit ? offset ?"
+
                     try {
                         val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
                         val preparedStatement = connection!!.prepareStatement(sql)
@@ -212,6 +211,7 @@ fun Route.adminRoutes() {
                                         resultSet.getString("role"),
                                         resultSet.getString("email"),
                                         resultSet.getString("school"),
+                                        resultSet.getString("phone")
                                     ) else null,
                                     resultSet.getInt("likes")
                                 ))
@@ -220,7 +220,7 @@ fun Route.adminRoutes() {
                         call.respond(HttpStatusCode.OK, result)
                     }catch (e: Exception){
                         println(e.localizedMessage)
-                        call.respond(HttpStatusCode(400, "Error"))
+                        call.respond(HttpStatusCode(400, "Error"), sql)
                         throw e
                     }
                 }
@@ -264,24 +264,24 @@ fun Route.adminRoutes() {
                 }
                 get("/approved/all"){
                     val page = call.request.queryParameters["page"]?.toInt()
-                    val sort = call.request.queryParameters["sort"]
+                    val order = call.request.queryParameters["sort"]
                     if(page == null || page < 1) {
                         call.respond(HttpStatusCode.BadRequest)
                         return@get
                     }
-                    val sortSql = when(sort) {
-                        "dateDesc" -> "order by date desc"
-                        "dateAsc" -> "order by date asc"
+                    val orderSql = when(order) {
+                        "dateDesc" -> "order by date desc, id desc"
+                        "dateAsc" -> "order by date asc, id asc"
                         "idDesc" -> "order by id desc"
                         else -> ""
                     }
                     val sql =
-                        "select a.id, suggestionId, moreInfo, date, title, content, postDate, isAnon, status, " +
+                        "select a.id, suggestionId, moreInfo, date, title, content, postDate, isAnon, status, phone, " +
                                 "u.id as userId, u.name as userName, role, email, schools.name as school, " +
                                 "categories.name as category, (select Count(*) from likes where suggestionId = s.id)" +
                                 " as likes  from approvedSuggestions a join suggestions s on a.suggestionId = s.id " +
                                 "join categories on s.categoryId = categories.id left join users u on s.userId = u.id" +
-                                " left join schools on u.schoolId = schools.id $sortSql limit ? offset ?"
+                                " left join schools on u.schoolId = schools.id $orderSql limit ? offset ?"
 
                     try {
                         val resultSet = getPagedData(sql, databaseUrl, page)
@@ -305,6 +305,7 @@ fun Route.adminRoutes() {
                                             resultSet.getString("role"),
                                             resultSet.getString("email"),
                                             resultSet.getString("school"),
+                                            resultSet.getString("phone")
                                         ) else null,
                                         resultSet.getInt("likes")
                                     ),

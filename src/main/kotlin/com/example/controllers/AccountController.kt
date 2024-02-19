@@ -23,7 +23,7 @@ fun getUser(databaseUrl: String, user: UserSession): User? {
         val preparedStatement = connection!!.prepareStatement(sql)
         preparedStatement.setInt(1, user.userId)
         val result = preparedStatement.executeQuery()
-        if(!result.next()){
+        if (!result.next()) {
             return null
         }
 
@@ -41,36 +41,19 @@ fun getUser(databaseUrl: String, user: UserSession): User? {
             result.getInt("isVerified")
         )
 
-    }catch (e: Exception){
+    } catch (e: Exception) {
         println(e.message)
         return null
     }
 }
-private fun setSchool(databaseUrl: String, user: UserSession, newSchoolId: Int?): Boolean{
-    if(newSchoolId == null) return false
-    try{
-        val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
-        val sql = "update users set schoolId = ? where id = ?"
-        val preparedStatement = connection!!.prepareStatement(sql)
-        preparedStatement.setInt(1, newSchoolId)
-        preparedStatement.setInt(2, user.userId)
-        val res = preparedStatement.executeUpdate()
-        if(res == 0) {
-            return false
-        }
-        preparedStatement.close()
-        connection.close()
-        return true
-    }catch (e: Exception){
-        return false
-    }
-}
-private fun hashPassword(password: String) : String{
+
+private fun hashPassword(password: String): String {
     return BCrypt.withDefaults().hashToString(12, password.toCharArray())
 }
+
 fun Route.accountRoutes() {
     route("/account") {
-        val databaseUrl = environment?.config?.propertyOrNull("ktor.database.url")?.getString() ?:""
+        val databaseUrl = environment?.config?.propertyOrNull("ktor.database.url")?.getString() ?: ""
         post("/create") {
             val body = call.receive<CreateUserDTO>()
             if (!Validator.validatePassword(body.password)) {
@@ -81,7 +64,7 @@ fun Route.accountRoutes() {
                 call.respond(HttpStatusCode.BadRequest, "Invalid email")
                 return@post
             }
-            if (!Validator.validatePhone(body.phone)){
+            if (!Validator.validatePhone(body.phone)) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid phone")
                 return@post
             }
@@ -89,7 +72,7 @@ fun Route.accountRoutes() {
                 call.respond(HttpStatusCode.BadRequest, "Invalid role")
                 return@post
             }
-            if(!Validator.validateName(body.name)){
+            if (!Validator.validateName(body.name)) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid name")
                 return@post
             }
@@ -111,38 +94,38 @@ fun Route.accountRoutes() {
                 connection.close()
 
                 call.respond(HttpStatusCode.Created)
-            }catch (e: Exception){
+            } catch (e: Exception) {
                 call.respond(HttpStatusCode.BadRequest)
                 throw e
             }
         }
         authenticate("auth-form") {
-            post("/login"){
+            post("/login") {
                 val user = call.principal<LoginPrincipal>()
-                if(user == null){
+                if (user == null) {
                     call.respond(HttpStatusCode.Unauthorized)
                     return@post
                 }
                 call.sessions.set(UserSession(userId = user.userId))
                 call.respond(HttpStatusCode.OK)
             }
-            delete("/delete"){
+            delete("/delete") {
                 val user = call.principal<UserSession>()
-                if(user == null){
+                if (user == null) {
                     call.respond(HttpStatusCode.Unauthorized)
                     return@delete
                 }
                 val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
                 var preparedStatement = connection!!.prepareStatement("delete from likes where likedById = ?")
-                preparedStatement.setInt(1,user.userId)
+                preparedStatement.setInt(1, user.userId)
                 preparedStatement.executeUpdate()
 
                 preparedStatement = connection.prepareStatement("update suggestions set userId = null where userId = ?")
-                preparedStatement.setInt(1,user.userId)
+                preparedStatement.setInt(1, user.userId)
                 preparedStatement.executeUpdate()
 
                 preparedStatement = connection.prepareStatement("update bans set adminId = null where adminId = ?")
-                preparedStatement.setInt(1,user.userId)
+                preparedStatement.setInt(1, user.userId)
                 preparedStatement.executeUpdate()
 
                 preparedStatement = connection.prepareStatement("delete from users where id=?")
@@ -154,21 +137,21 @@ fun Route.accountRoutes() {
             }
         }
         authenticate("auth-logout") {
-            post("/logout"){
+            post("/logout") {
                 call.sessions.clear<UserSession>()
                 call.respond(HttpStatusCode.OK)
             }
         }
         authenticate("auth-session") {
-            get{
+            get {
                 val user = call.sessions.get<UserSession>()
-                if(user == null){
+                if (user == null) {
                     call.respond(HttpStatusCode.Unauthorized)
                     return@get
                 }
-                try{
+                try {
                     val userEntity = getUser(databaseUrl, user)
-                    if(userEntity == null){
+                    if (userEntity == null) {
                         call.respond(HttpStatusCode.NotFound)
                         return@get
                     }
@@ -181,17 +164,17 @@ fun Route.accountRoutes() {
                         userEntity.isVerified
                     )
                     call.respond(HttpStatusCode.OK, res)
-                }catch (e:Exception){
+                } catch (e: Exception) {
                     throw e
                 }
             }
-            get("/email"){
+            get("/email") {
                 val user = call.sessions.get<UserSession>()
-                if(user == null){
+                if (user == null) {
                     call.respond(HttpStatusCode.Unauthorized)
                     return@get
                 }
-                try{
+                try {
                     val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
                     val sql = "select email from users where id=?"
                     val preparedStatement = connection!!.prepareStatement(sql)
@@ -202,173 +185,170 @@ fun Route.accountRoutes() {
                     result.close()
                     preparedStatement.close()
                     connection.close()
-                }catch (e:Exception){
+                } catch (e: Exception) {
                     throw e
                 }
             }
         }
-        route("settings"){
+        route("settings") {
             authenticate("auth-session") {
-                put("/name"){
+                put("/name") {
                     val user = call.sessions.get<UserSession>()
                     val body = call.receive<NameDTO>()
-                    if(user == null){
+                    if (user == null) {
                         call.respond(HttpStatusCode.Unauthorized)
                         return@put
                     }
-                    if(!Validator.validateName(body.name)){
+                    if (!Validator.validateName(body.name)) {
                         call.respond(HttpStatusCode.BadRequest, "Invalid name")
                         return@put
                     }
-                    try{
+                    try {
                         val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
                         val sql = "update users set name = ? where id = ?"
                         val preparedStatement = connection!!.prepareStatement(sql)
-                        preparedStatement.setString(1,body.name)
-                        preparedStatement.setInt(2,user.userId)
+                        preparedStatement.setString(1, body.name)
+                        preparedStatement.setInt(2, user.userId)
                         val res = preparedStatement.executeUpdate()
-                        if(res == 0) {
+                        if (res == 0) {
                             call.respond(HttpStatusCode.NotFound)
                             return@put
                         }
                         call.respond(HttpStatusCode.OK)
                         preparedStatement.close()
                         connection.close()
-                    }catch (e:Exception){
+                    } catch (e: Exception) {
                         throw e
                     }
                 }
-                put("/phone"){
+                put("/phone") {
                     val user = call.sessions.get<UserSession>()
                     val body = call.receive<PhoneDTO>()
-                    if(user == null){
+                    if (user == null) {
                         call.respond(HttpStatusCode.Unauthorized)
                         return@put
                     }
-                    if(!Validator.validatePhone(body.phone)){
+                    if (!Validator.validatePhone(body.phone)) {
                         call.respond(HttpStatusCode.BadRequest, "Invalid phone")
                         return@put
                     }
-                    try{
+                    try {
                         val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
                         val sql = "update users set phone = ? where id = ?"
                         val preparedStatement = connection!!.prepareStatement(sql)
-                        preparedStatement.setString(1,body.phone)
-                        preparedStatement.setInt(2,user.userId)
+                        preparedStatement.setString(1, body.phone)
+                        preparedStatement.setInt(2, user.userId)
                         val res = preparedStatement.executeUpdate()
-                        if(res == 0) {
+                        if (res == 0) {
                             call.respond(HttpStatusCode.NotFound)
                             return@put
                         }
                         call.respond(HttpStatusCode.OK)
                         preparedStatement.close()
                         connection.close()
-                    }catch (e:Exception){
+                    } catch (e: Exception) {
                         throw e
                     }
                 }
-                put("/role"){
+                put("/role") {
                     val body = call.receive<ChangeRoleDTO>()
                     val user = call.sessions.get<UserSession>()
-                    if(user == null){
+                    if (user == null) {
                         call.respond(HttpStatusCode.Unauthorized)
                         return@put
                     }
-                    if(!Validator.validateNonAdminRole(body.role)){
+                    if (!Validator.validateNonAdminRole(body.role)) {
                         call.respond(HttpStatusCode.BadRequest, "Invalid role")
                         return@put
                     }
-                    try{
+                    try {
                         val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
                         var preparedStatement = connection!!.prepareStatement("select * from users where id = ?")
-                        preparedStatement.setInt(1,user.userId)
+                        preparedStatement.setInt(1, user.userId)
                         val resCheckRole = preparedStatement.executeQuery()
-                        if(resCheckRole.next()){
-                            if(resCheckRole.getString("role") == "admin"){
+                        if (resCheckRole.next()) {
+                            if (resCheckRole.getString("role") == "admin") {
                                 call.respond(HttpStatusCode.Conflict, "Could not remove admin role")
                             }
-                        } else{
+                        } else {
                             call.respond(HttpStatusCode(400, "Error"))
                             return@put
                         }
 
-                        preparedStatement = connection.prepareStatement("update users set role = ? where id = ?")
+                        preparedStatement =
+                            connection.prepareStatement("update users set role = ?, schoolId = ? where id = ?")
                         preparedStatement.setString(1, body.role)
-                        preparedStatement.setInt(2, user.userId)
+                        when (body.role) {
+                            "student" -> if (body.schoolId != null) preparedStatement.setInt(
+                                2,
+                                body.schoolId
+                            ) else preparedStatement.setNull(2, 4)
+                            "citizen" -> preparedStatement.setNull(2, 4)
+                        }
+                        preparedStatement.setInt(3, user.userId)
                         val res = preparedStatement.executeUpdate()
-                        if(res == 0) {
+                        if (res == 0) {
                             call.respond(HttpStatusCode.NotFound)
                             return@put
-                        }
-                        if(body.role == "citizen"){
-                            val sqlRemoveSchool = "update users set schoolId = null where id = ?"
-                            val removeSchoolStatement = connection.prepareStatement(sqlRemoveSchool)
-                            removeSchoolStatement.setInt(1, user.userId)
-                            preparedStatement.executeUpdate()
-                        }
-                        if(body.role == "student"){
-                            if(!setSchool(databaseUrl, user, body.schoolId)){
-                                call.respond(HttpStatusCode.BadRequest, "Invalid schoolId")
-                                return@put
-                            }
                         }
                         call.respond(HttpStatusCode.OK)
                         preparedStatement.close()
                         connection.close()
-                    }catch (e:Exception){
+                    } catch (e: Exception) {
                         throw e
                     }
                 }
-                put("/school"){
-                    val body = call.receive<IdSchoolDTO>()
+                put("/school") {
+                    val body = call.receive<UpdateSchoolDTO>()
                     val user = call.sessions.get<UserSession>()
-                    if(user == null){
+                    if (user == null) {
                         call.respond(HttpStatusCode.Unauthorized)
                         return@put
                     }
-                    val userEntity = getUser(databaseUrl, user)
-                    if(userEntity == null){
-                        call.respond(HttpStatusCode.NotFound)
-                        return@put
-                    }
-                    if(userEntity.role == "citizen"){
-                        call.respond(HttpStatusCode.Conflict, "Can't set school when role is citizen")
-                        return@put
-                    }
-                    try{
-                        if(setSchool(databaseUrl, user, body.id)) call.respond(HttpStatusCode.OK)
-                        else call.respond(HttpStatusCode.BadRequest)
-                    }catch (e:Exception){
-                        throw e
+                    try {
+                        val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
+                        val sql = "update users set schoolId = ? where id = ? AND role!='citizen' "
+                        val preparedStatement = connection!!.prepareStatement(sql)
+                        if(body.schoolId != null) preparedStatement.setInt(1, body.schoolId)
+                        else preparedStatement.setNull(1, 4)
+                        preparedStatement.setInt(2, user.userId)
+                        preparedStatement.executeUpdate()
+
+                        connection.close()
+                        preparedStatement.close()
+                        call.respond(HttpStatusCode.OK)
+                    } catch (e: Exception) {
+                        println(e)
+                        call.respond(HttpStatusCode(400,"Error"))
                     }
                 }
-                put("/password"){
+                put("/password") {
                     val user = call.sessions.get<UserSession>()
-                    if(user == null){
+                    if (user == null) {
                         call.respond(HttpStatusCode.Unauthorized)
                         return@put
                     }
                     val body = call.receive<ChangePasswordDTO>()
-                    if(!validateCredentialsById(databaseUrl, user.userId, body.oldPassword)) {
+                    if (!validateCredentialsById(databaseUrl, user.userId, body.oldPassword)) {
                         call.respond(HttpStatusCode.Unauthorized)
                         return@put
                     }
                     val hashedPassword = hashPassword(body.newPassword)
-                    try{
+                    try {
                         val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
                         val sql = "update users set password = ? where id = ?"
                         val preparedStatement = connection!!.prepareStatement(sql)
                         preparedStatement.setString(1, hashedPassword)
                         preparedStatement.setInt(2, user.userId)
                         val res = preparedStatement.executeUpdate()
-                        if(res == 0){
+                        if (res == 0) {
                             call.respond(HttpStatusCode.NotFound)
                             return@put
                         }
                         call.respond(HttpStatusCode.OK)
                         preparedStatement.close()
                         connection.close()
-                    }catch (e:Exception){
+                    } catch (e: Exception) {
                         throw e
                     }
                 }

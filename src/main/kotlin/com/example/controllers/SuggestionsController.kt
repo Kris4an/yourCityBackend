@@ -140,6 +140,7 @@ fun Route.suggestionRoutes() {
                 }
             }
             post("/like/{suggestionId}") {
+                //TODO improve like method
                 val suggestionId = call.parameters["suggestionId"]?.toInt()
                 val user = call.sessions.get<UserSession>()
                 if (suggestionId == null || suggestionId < 0 || user == null) {
@@ -213,6 +214,15 @@ fun Route.suggestionRoutes() {
                 call.respond(HttpStatusCode.BadRequest)
                 return@get
             }
+            val orderReq = call.request.queryParameters["order"]
+            var order = "order by likes desc, id"
+            if(orderReq != null) when (orderReq) {
+                "likesDesc" -> order = "order by likes desc, id"
+                "likesAsc" -> order = "order by likes asc, id"
+                "dateDesc" -> order = "order by postDate desc, id"
+                "dateAsc" -> order = "order by postDate asc, id"
+            }
+
             try {
                 val connection: Connection? = DriverManager.getConnection(databaseUrl, "root", "")
                 val sql = "select s.id, title, content, postDate, isAnon, postDate, " +
@@ -221,7 +231,7 @@ fun Route.suggestionRoutes() {
                         "(select Count(*) from likes where suggestionId = s.id AND likedById  = ?) as likedByUser " +
                         "from suggestions as s left join users as u on s.userId = u.id join categories on " +
                         "s.categoryId = categories.id left join schools on u.schoolId = schools.id " +
-                        "where status='accepted' limit ? offset ?"
+                        "where status='accepted' $order limit ? offset ?"
                 val preparedStatement = connection!!.prepareStatement(sql)
 
                 if (reqUser != null) {
